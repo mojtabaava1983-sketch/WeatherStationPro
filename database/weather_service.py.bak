@@ -1,0 +1,40 @@
+"""M01 Patch 01: permissive weather observation persistence."""
+from __future__ import annotations
+from typing import Any\nfrom datetime import datetime, timezone
+from .repository import WeatherRepository, RepositoryError
+
+class WeatherService:
+    """Store every available observation value; no weather field is required."""
+
+    def __init__(self, repository: WeatherRepository):
+        self.repository = repository
+
+    def save_observation(self, table: str, values: dict[str, Any]) -> int:
+        clean = {k: v for k, v in values.items() if v is not None}
+        if "Precipitation" in clean:
+            clean["Rain"] = clean.pop("Precipitation")
+        allowed = {
+            "CityID","SourceID","ObservationUTC","ObservationUnix",
+            "Temperature","FeelsLike","Humidity","Pressure","WindSpeed",
+            "WindDirection","GustSpeed","CloudCover","Visibility","DewPoint",
+            "Rain","Snow","WeatherCode","DataQuality"
+        }
+        clean = {k: v for k, v in clean.items() if k in allowed}
+        now=datetime.now(timezone.utc)
+        clean.setdefault("CreatedUTC", now.isoformat())
+        clean.setdefault("CreatedUnix", int(now.timestamp()))
+        if not clean:
+            raise RepositoryError("Observation contains no available values.")
+        return self.repository.insert_observation(
+            table, clean, required_fields=()
+        )
+
+    @staticmethod
+    def normalize_observation(values: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(values)
+        normalized.setdefault("Temperature", None)
+        normalized.setdefault("Humidity", None)
+        normalized.setdefault("WindSpeed", None)
+        normalized.setdefault("Sunrise", None)
+        normalized.setdefault("Sunset", None)
+        return normalized
