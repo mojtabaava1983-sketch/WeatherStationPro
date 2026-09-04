@@ -35,6 +35,7 @@ DB=BASE_DIR/"weatherstation_runtime.db"
 REPORTS=BASE_DIR/"reports"
 BACKUPS=BASE_DIR/"backups"
 LOGS=BASE_DIR/"logs"
+M08_PATH=BASE_DIR/"WeatherStation_M08_Final.accdb"
 
 def now(): return datetime.now(timezone.utc)
 def ts(x): return int(x.timestamp())
@@ -101,6 +102,18 @@ def cycle(api,service):
     rid,_=acquire(api,service); summary,obs=analysis(); fc=make_forecast(obs); sun=make_sun(); reports=make_reports(); b=BackupService(BACKUPS).create_backup(DB)
     return rid,summary,fc,sun,reports,b
 
+def launch_m08():
+    if not M08_PATH.exists():
+        print("[WARN] M08 Access file not found:", M08_PATH)
+        return False
+    try:
+        os.startfile(str(M08_PATH))
+        print("[PASS] M08 Access launched")
+        return True
+    except Exception as exc:
+        print("[WARN] M08 launch failed:", exc)
+        return False
+
 def main():
     LOGS.mkdir(parents=True,exist_ok=True); logging.basicConfig(filename=LOGS/"runtime.log",level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
     app=ApplicationSettings(); app.validate(); cfg=RuntimeSettings(); cfg.validate()
@@ -111,6 +124,7 @@ def main():
     def job(): state["result"]=cycle(api,service); return state["result"][0]
     scheduler.add_job(Job("weatherstation_cycle",job,Schedule.seconds(cfg.acquisition_interval_seconds),run_immediately=True)); scheduler.start()
     print("="*48); print(" WEATHERSTATION PRO"); print(" OPERATIONAL RUNTIME"); print("="*48); print(f"Database: {DB}"); print(f"Reports: {REPORTS}"); print(f"Interval: {cfg.acquisition_interval_seconds}s")
+    launch_m08()
     try:
         while True:
             for r in scheduler.tick():
@@ -123,15 +137,3 @@ def main():
     return 0
 
 if __name__=="__main__": raise SystemExit(main())
-M08_PATH = BASE_DIR / "WeatherStation_M08_Final.accdb"
-
-def launch_m08():
-    if not M08_PATH.exists():
-        print("[WARN] M08 Access file not found:", M08_PATH)
-        return
-    try:
-        os.startfile(str(M08_PATH))
-        print("[PASS] M08 Access launched")
-    except Exception as exc:
-        print("[WARN] M08 launch failed:", exc)
-launch_m08()
